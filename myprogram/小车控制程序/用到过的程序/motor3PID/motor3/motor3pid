@@ -1,0 +1,93 @@
+int d_time=100;//设定单位时间
+int AIN5=38;
+int AIN6=40;
+int AM3=42;
+int BM3=44;
+int PWM3=8;
+int flagA3=0;
+int flagB3=0;//电机3的标志位设定
+int valA3=0;
+int valB3=0;//用来储存电机3的AB相记录的脉冲数
+int valpid;//设置pid输出值
+double n3;//存储电机2的转速的变量
+unsigned long times;
+unsigned long newtime;
+double Setpoint, Input, Output,setpoint;
+double kp = 10,ki = 2,kd =2;//如何确定
+PID myPID(&Input, &Output, &Setpoint,kp,ki,kd, DIRECT);
+void setup()
+{
+  Serial.begin(9600);
+  pinMode(AM3,INPUT);
+  pinMode(BM3,INPUT);
+  pinMode(AIN5,OUTPUT);
+  pinMode(AIN6,OUTPUT);
+  pinMode(PWM3,OUTPUT);
+  myPID.SetTunings(kp,ki,kd);
+  myPID.SetOutputLimits(0,255);
+  myPID.SetSampleTime(100);
+  myPID.SetMode(AUTOMATIC);
+  Setpoint=3;
+}
+void loop()
+{
+  newtime=times=millis();
+  while((newtime-times)<d_time)
+  {
+     if(digitalRead(AM3)==HIGH && flagA3==0)
+     {
+       valA3++;
+       flagA3=1;
+     }
+      if(digitalRead(AM3)==LOW && flagA3==1)
+       {
+         valA3++;
+         flagA3=0;
+       }
+       if(digitalRead(BM3)==HIGH && flagB3==0)
+       {
+         valB3++;
+         flagB3=1; 
+       }
+       if(digitalRead(BM3)==LOW && flagB3==1)
+       {
+        valB3++;
+        flagB3=0; 
+       }//电机3的编码器脉冲计数
+       newtime=millis();   
+   }
+    n3=(valA3+valB3)/(1.56*d_time);//计算电机3转速
+    Serial.print("MOTOR3:");
+    Serial.print(n3);
+    Serial.println("rad/s");//输出电机3转速数值
+    valA3=valB3=0;//清零储存脉冲数的变量
+     Input=n3;
+     myPID.Compute();
+     valpid=Output;  
+     go(valpid);
+  
+    
+     
+}
+void pidcompute()
+{
+  unsigned long nowtime=millis();
+  int timeChange=(nowtime-lasttime);
+  if (timeChange>=SampleTime)
+  {
+    double error=Setpoint-Input;
+    errorsum+= error;
+    derror=(error-lasterror)
+    Output=kp*error+ki*errorsum+kd*derror;
+    lasterror=error;
+    lasttime=nowtime;
+   }
+   
+ }
+void go (int g3)
+{
+      digitalWrite(AIN5,HIGH);
+      digitalWrite(AIN6,LOW);
+      analogWrite(PWM3,g3); 
+ }
+
