@@ -17,7 +17,7 @@ double error1,error2,error3;
 double kp1=12,kd1=0,ki1=35;
 double kp2=8,kd2=0,ki2=26;
 double kp3=14,kd3=2,ki3=45;
-int SampleTime=100;//设置pid采样时间100ms
+int SampleTime=300;//设置pid采样时间100ms,change from 100 to 300 on 11-26
 //设置AB相中断输入引脚
 #define A2 19
 #define B2 18//电机2的A相B相输入引脚的定义:外部中断0 1*/
@@ -142,7 +142,7 @@ void loop() {
   wheelspeed_pub.publish(&wheelspeed_msg);
  carspeed_pub.publish(&carspeed_msg);
  nh.spinOnce();
- delay(100);
+ delay(300);//changed from 100 to 500 on 2018-11-26
 }
 
 //第一个编码器四倍频计数

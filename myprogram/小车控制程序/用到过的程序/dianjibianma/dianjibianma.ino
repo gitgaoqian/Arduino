@@ -79,7 +79,7 @@ void loop() {
   go(0,0,125);//驱动电机1 3,小车直线行走,
   //delay(2000);
 
- collect();
+// collect();
 
  delay(400);
 

@@ -1,22 +1,25 @@
+#include <ros.h>
+#include <geometry_msgs/Twist.h>//订阅twist消息类型话题，并转换为期望轮速
+#include <base_control/carspeed.h>//转换编码器采样速度到车身速度,并发布出去
+#include <base_control/wheelspeed.h>
 
-/*#include <ros.h>
-//#include <geometry_msgs/Twist.h>//订阅twist消息类型话题，并转换为期望轮速
-//#include <smartcar/carspeed.h>//转换编码器采样速度到车身速度,并发布出去
-//*/
 //定义和设置pid控制中所涉及的参数
 unsigned long lasttime;
 unsigned long nowtime;
 double pi=3.1416;
-double Setpoint1 =0,Setpoint2 =0,Setpoint3=0.0;//设置期望速度
+double Setpoint1 ,Setpoint2 ,Setpoint3;//设置期望速度3r/s
 double Input1,Input2,Input3;
 double Output1,Output2,Output3;
 double errorsum1,errorsum2,errorsum3;
 double derror1,derror2,derror3;
 double lasterror1,lasterror2,lasterror3;
 double error1,error2,error3;
-double kp1=13,kd1=2,ki1=33;
+//double kp1=12,kd1=0,ki1=35;
+//double kp2=8,kd2=0,ki2=26;
+//double kp3=14,kd3=2,ki3=45;//2018-11-27前的pid参数
+double kp1=13,kd1=0,ki1=33;
 double kp2=8,kd2=0,ki2=26;
-double kp3=10,kd3=0,ki3=28;
+double kp3=10,kd3=2,ki3=28;//2018-11-27重新调整的pid参数
 int SampleTime=100;//设置pid采样时间100ms
 //设置AB相中断输入引脚
 #define A2 19
@@ -24,7 +27,7 @@ int SampleTime=100;//设置pid采样时间100ms
 #define A1 21
 #define B1 20 //电机1的A相B相输入引脚的定义:外部中断2 3*/
 #define A3 2
-#define B3 3 //电机3的A相B相输入引脚的定义:外部中断4 5*/ //把A2 B2接到19 18;A3 B3接到2　3编码器读数就不行，为什么？
+#define B3 3 //电机3的A相B相输入引脚的定义:外部中断4 5*/
 //设置L298N引脚
 int AIN1=24;
 int AIN2=22;
@@ -34,7 +37,7 @@ int AIN4=9;
 int PWM2=8;//电机2的AIN3 4和PWM2是电机输出引脚的定义
 int AIN5=7;
 int AIN6=6;
-int PWM3=5;//电机3的AIN3 4和PWM2是电机输出引脚的定义
+int PWM3=5;//电机3的AIN5 6和PWM3是电机输出引脚的定义
 //设置一些变量
 double counter1;//用来储存电机1的编码器记录的脉冲数*/
 double counter2;//用来储存电机2的编码器记录的脉冲数
@@ -53,7 +56,7 @@ void stay();//电机子函数申明
 //double time1,time2,time3;
 
 //定义车身前进的线速度和角速度
-/*double lin_vel_x, lin_vel_y;
+double lin_vel_x, lin_vel_y;
 double ang_vel;
 //定义车轮的转速,同样也是pid控制器中setpoint的输入
 double w1,w2,w3;
@@ -69,21 +72,21 @@ void motor_cb(const geometry_msgs::Twist& vel)
    lin_vel_y=vel.linear.y;
    ang_vel = vel.angular.z;
    //参考运动学模型解算出各轮转速
-   w1=(lin_vel_x*(-cos(fi))+lin_vel_y*sin(fi)+ang_vel*l)/(2*pi*R);
-   w2=(lin_vel_y*(-sin(fi))+ang_vel*l)/(2*pi*R);
-   w3=(lin_vel_x*cos(fi)+lin_vel_y*sin(fi)+ang_vel*l)/(2*pi*R);
-   go(w1,w2,w3);
+   Setpoint1=(lin_vel_x*(-cos(fi))+lin_vel_y*sin(fi)+ang_vel*l)/(2*pi*R);
+   Setpoint2=(-lin_vel_y+ang_vel*l)/(2*pi*R);
+   Setpoint3=(lin_vel_x*cos(fi)+lin_vel_y*sin(fi)+ang_vel*l)/(2*pi*R);
    
 }
 //定义twist消息订阅者
 ros::Subscriber<geometry_msgs::Twist> sub("/cmd_vel", motor_cb);
 //定义小车速度的发布者
-smartcar::carspeed carspeed_msg;
+base_control::carspeed carspeed_msg;
+base_control::wheelspeed wheelspeed_msg;
 ros::Publisher carspeed_pub("carspeed",&carspeed_msg);
-*/
+ros::Publisher wheelspeed_pub("wheelspeed",&wheelspeed_msg);
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(115200);//加上ros程序后,arduino中serial没用了,串口频率的
+  //Serial.begin(115200);//加上ros程序后,arduino中serial没用了,串口频率的
   //设定用rosrun serial_python命令,默认是57600
   pinMode(AIN1,OUTPUT);
   pinMode(AIN2,OUTPUT);
@@ -105,31 +108,43 @@ void setup() {
   pinMode(A3,INPUT);
   pinMode(B3,INPUT);
   attachInterrupt(4, doEncoderA2, CHANGE);
-  attachInterrupt(5, doEncoderB2, CHANGE);//第三个编码器的AB相
-  /*nh.initNode();
+  attachInterrupt(5, doEncoderB2, CHANGE);//电机3编码器的AB相
+  nh.initNode();
   nh.subscribe(sub);// put your setup code here, to run once:
   nh.advertise(carspeed_pub);
-  */
+  nh.advertise(wheelspeed_pub);
+  
 }
 
 void loop() {
-  //go(0,0,0);//驱动电机1 3,小车直线行走,50 37 69
+ //go(100,0,100);//驱动电机1 3,小车直线行走,
   pidcompute();
-  Serial.print("MOTOR1:");
-  Serial.print(n1);
-  Serial.println("r/s");
-  Serial.print("MOTOR2:");
-  Serial.print(n2);
-  Serial.println("r/s");
-  Serial.print("MOTOR3:");
-  Serial.print(n3);
-  Serial.println("r/s");
+//  Serial.print("MOTOR1:");
+//  Serial.print(n1);
+//  Serial.println("r/s");
+//  Serial.print("MOTOR2:");
+//  Serial.print(n2);
+//  Serial.println("r/s");
+//  Serial.print("MOTOR3:");
+//  Serial.print(n3);
+//  Serial.println("r/s");
   counter1 = 0;
   counter2 = 0;
   counter3 = 0;
+  //测得车轮的速度进行逆解算,得到车身速度
+  carspeed_msg.vx=pi*R*(-n1+n3)/cos(fi)*0.81;
+  carspeed_msg.vy=pi*R*(n1-2*n2+n3)/(1+sin(fi))*0.81;
+  carspeed_msg.vth=pi*R*(n1+2*sin(fi)*n2+n3)/(1+sin(fi))*0.81;
+
+  wheelspeed_msg.n1=n1;
+  wheelspeed_msg.n2=n2;
+  wheelspeed_msg.n3=n3;
+  
+  
   go(Output1,Output2,Output3);
- //carspeed_pub.publish(&carspeed_msg);
- //nh.spinOnce();
+  wheelspeed_pub.publish(&wheelspeed_msg);
+ carspeed_pub.publish(&carspeed_msg);
+ nh.spinOnce();
  delay(100);
 }
 
@@ -367,8 +382,6 @@ void pidcompute()
     derror1=(error1-lasterror1)*1000/SampleTime;
     Output1=kp1*error1+ki1*errorsum1+kd1*derror1;
     lasterror1=error1;
-    if(abs(Output1)> 255) Output1 = 255; 
-    
     //pid调节电机2
     
     Input2=n2;
@@ -377,7 +390,6 @@ void pidcompute()
     derror2=(error2-lasterror2)*1000/SampleTime;
     Output2=kp2*error2+ki2*errorsum2+kd2*derror2;
     lasterror2=error2;
-    if(abs(Output2)> 255) Output2 = 255; 
     //pid调节电机3
    
     Input3=n3;
@@ -386,7 +398,6 @@ void pidcompute()
     derror3=(error3-lasterror3)*1000/SampleTime;
     Output3=kp3*error3+ki3*errorsum3+kd3*derror3;
     lasterror3=error3;
-    if(abs(Output3)> 255) Output3 = 255; 
     lasttime=nowtime;
    } 
 }
