@@ -6,7 +6,7 @@
 // 定义和设置pid控制中所涉及的参数
 unsigned long lasttime;
 unsigned long nowtime;
-double pi = 3.1415926;
+double pi = 3.14159269297;
 double Setpoint1 = 0, Setpoint2 = 0, Setpoint3 = 0.0; // 设置期望速度
 double Input1, Input2, Input3;
 double Output1, Output2, Output3;
